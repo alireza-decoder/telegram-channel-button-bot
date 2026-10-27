@@ -1,0 +1,29 @@
+# Credentials: never commit bot tokens or production configuration
+/config.php
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Private per-user draft, settings and published-post history
+/storage/*
+!/storage/.htaccess
+!/storage/index.php
+
+# Runtime/debug artifacts and local tools
+*.log
+*.sqlite
+*.sqlite3
+*.db
+*.zip
+*.tar.gz
+*.bak
+*.backup
+*~
+.idea/
+.vscode/
+.DS_Store
+/vendor/
