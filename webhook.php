@@ -52,6 +52,7 @@ function processMessage(array $message): void
         return;
     }
     setCurrentUser((int) $message['from']['id']);
+    if (!forceJoinPermit()) return;
     $text = trim((string) ($message['text'] ?? ''));
     if ($text === '/start' || str_starts_with($text, '/start ')) {
         store(static function (array &$state): void {
@@ -60,7 +61,7 @@ function processMessage(array $message): void
                 $state['draft'] = null;
             }
         });
-        sendToAdmin("سلام! 👋\n\nبرای انتشار در کانالی که مدیرش هستی، «ساخت متن دکمه دار» را بزن.\nبرای تنظیم رنگ و ویرایش دکمه‌های پست‌های قبلی، وارد «تنظیمات بات» شو.\nبرای هر پست می‌توانی چند دکمه با چیدمان دلخواه بسازی.", replyKeyboard());
+        sendBotWelcome();
         return;
     }
     if ($text === '/cancel') {
@@ -449,6 +450,13 @@ function processCallback(array $callback): void
         return;
     }
     setCurrentUser((int) $userId);
+    if ($action === 'forcejoin:check') {
+        if (!forceJoinPermit($id)) return;
+        callbackAnswer($id, '✅ عضویت تأیید شد.');
+        sendToAdmin((string) (forceJoinConfig()['success_text'] ?? '✅ عضویت تأیید شد.'), replyKeyboard());
+        return;
+    }
+    if (!forceJoinPermit($id)) return;
     // Controls carry the draft ID, making old keyboards harmless after starting a new post.
     if (preg_match('/^(badd|bdone|bmanager|babort):([0-9a-f]{16})$/', $action, $m)) {
         $cmd = $m[1]; $draftId = $m[2];
@@ -909,4 +917,9 @@ function processCallback(array $callback): void
         return;
     }
     callbackAnswer($id, 'عملیات نامعتبر است.');
+}
+
+function sendBotWelcome(): void
+{
+    sendToAdmin("سلام! 👋\n\nبرای انتشار در کانالی که مدیرش هستی، «ساخت متن دکمه دار» را بزن.\nبرای تنظیم رنگ و ویرایش دکمه‌های پست‌های قبلی، وارد «تنظیمات بات» شو.\nبرای هر پست می‌توانی چند دکمه با چیدمان دلخواه بسازی.", replyKeyboard());
 }

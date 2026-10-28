@@ -1,7 +1,7 @@
 Options -Indexes
-<Files "config.php">
+<FilesMatch "^(?:config|force_join)\.php$">
     Require all denied
-</Files>
+</FilesMatch>
 <FilesMatch "^(?:README.*|\.env.*)$">
     Require all denied
 </FilesMatch>

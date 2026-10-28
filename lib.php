@@ -110,6 +110,150 @@ function replyKeyboard(): array
     ];
 }
 
+
+/**
+ * Optional forced-join configuration. The bot token remains in config.php.
+ * This dedicated file makes updates safe for already deployed installations.
+ */
+function forceJoinConfig(): array
+{
+    static $data = null;
+    if ($data !== null) return $data;
+    $defaults = [
+        'enabled' => false,
+        'title' => '🔒 عضویت الزامی',
+        'description' => "برای ادامه ابتدا در کانال‌های مشخص‌شده عضو شوید و سپس روی دکمه بررسی بزنید.",
+        'success_text' => '✅ عضویت شما تأیید شد. از منوی زیر استفاده کنید.',
+        'check_button_text' => '✅ بررسی عضویت',
+        'check_button_style' => 'success',
+        'channels' => [],
+    ];
+    $file = __DIR__ . '/force_join.php';
+    $custom = is_file($file) ? require $file : [];
+    if (!is_array($custom)) {
+        throw new RuntimeException('force_join.php must return an array.');
+    }
+    $data = array_replace($defaults, $custom);
+    return $data;
+}
+
+/**
+ * A member is allowed only after ALL configured channels return a valid member
+ * status. API errors fail closed so a non-admin bot never bypasses the gate.
+ * $fetchMember and $configuration exist only to support offline tests.
+ */
+function forceJoinStatus(int $userId, ?callable $fetchMember = null, ?array $configuration = null): array
+{
+    $settings = $configuration ?? forceJoinConfig();
+    if (empty($settings['enabled'])) {
+        return ['allowed' => true, 'missing' => [], 'errors' => []];
+    }
+    $channels = $settings['channels'] ?? null;
+    if (!is_array($channels) || count($channels) === 0 || count($channels) > 10) {
+        return ['allowed' => false, 'missing' => [], 'errors' => ['تنظیمات کانال‌ها خالی یا نامعتبر است.']];
+    }
+    $missing = [];
+    $errors = [];
+    $fetchMember ??= static fn(string $chatId, int $uid): array => tg('getChatMember', ['chat_id' => $chatId, 'user_id' => $uid]);
+    foreach ($channels as $index => $channel) {
+        if (!is_array($channel)) {
+            $errors[] = 'مشخصات کانال ' . ($index + 1) . ' نامعتبر است.';
+            continue;
+        }
+        $chatId = trim((string) ($channel['chat_id'] ?? ''));
+        $url = trim((string) ($channel['url'] ?? ''));
+        $label = trim((string) ($channel['button_text'] ?? ''));
+        if (!preg_match('/^(?:@[A-Za-z0-9_]{5,32}|-?[0-9]{5,20})$/D', $chatId)
+            || !preg_match('~^https://(?:t\.me|telegram\.me)/[A-Za-z0-9_+/-]+(?:\?[A-Za-z0-9_=&%-]+)?$~iD', $url)
+            || $label === '' || utf16Length($label) > 64) {
+            $errors[] = 'شناسه، لینک یا عنوان دکمه کانال ' . ($index + 1) . ' نامعتبر است.';
+            continue;
+        }
+        try {
+            $response = $fetchMember($chatId, $userId);
+            if (!is_array($response) || empty($response['ok']) || !is_array($response['result'] ?? null)) {
+                $errors[] = 'بررسی کانال ' . $label . ' ممکن نشد: ' . telegramError(is_array($response) ? $response : []);
+                continue;
+            }
+            $member = $response['result'];
+            $status = (string) ($member['status'] ?? '');
+            $joined = in_array($status, ['creator', 'administrator', 'member'], true)
+                || ($status === 'restricted' && !empty($member['is_member']));
+            if (!$joined) $missing[] = $channel;
+        } catch (Throwable $e) {
+            error_log('Forced join getChatMember failed: ' . $e->getMessage());
+            $errors[] = 'خطا در بررسی کانال ' . $label . '؛ ادمین بودن ربات و آیدی کانال را بررسی کن.';
+        }
+    }
+    return ['allowed' => $missing === [] && $errors === [], 'missing' => $missing, 'errors' => $errors];
+}
+
+function forceJoinKeyboard(array $status): array
+{
+    $settings = forceJoinConfig();
+    $style = (string) ($settings['check_button_style'] ?? 'success');
+    $check = [
+        'text' => (string) ($settings['check_button_text'] ?: '✅ بررسی عضویت'),
+        'callback_data' => 'forcejoin:check',
+    ];
+    if (in_array($style, ['success', 'primary', 'danger'], true)) $check['style'] = $style;
+    $rows = [[$check]];
+    // Show every required channel, exactly like the screenshot, even if some
+    // are already joined; users can revisit them before checking membership.
+    foreach (($settings['channels'] ?? []) as $channel) {
+        if (!is_array($channel)) continue;
+        $url = trim((string) ($channel['url'] ?? ''));
+        $label = trim((string) ($channel['button_text'] ?? ''));
+        if ($url !== '' && $label !== '' && preg_match('~^https://(?:t\.me|telegram\.me)/~i', $url)) {
+            $row = ['text' => $label, 'url' => $url];
+            $color = (string) ($channel['button_style'] ?? 'default');
+            if (in_array($color, ['success', 'primary', 'danger'], true)) $row['style'] = $color;
+            $rows[] = [$row];
+        }
+    }
+    return ['inline_keyboard' => $rows];
+}
+
+function forceJoinShowPrompt(array $status): void
+{
+    // Telegram cannot attach an inline keyboard and remove a reply keyboard
+    // in one message, so remove the old menu once, then show the join options.
+    $remove = store(static function (array &$state): bool {
+        if (!empty($state['force_join_screen_shown'])) return false;
+        $state['force_join_screen_shown'] = true;
+        return true;
+    });
+    if ($remove) sendToAdmin('', ['remove_keyboard' => true]);
+    $settings = forceJoinConfig();
+    $message = (string) ($settings['title'] ?? '🔒 عضویت الزامی') . "\n\n"
+        . (string) ($settings['description'] ?? 'لطفاً عضو شوید و بررسی را بزنید.');
+    if (($status['errors'] ?? []) !== []) {
+        $message .= "\n\n⚠️ بررسی عضویت در حال حاضر کامل نشد.\n" . implode("\n", $status['errors']);
+    }
+    sendToAdmin($message, forceJoinKeyboard($status));
+}
+
+function forceJoinMarkVerified(): void
+{
+    store(static function (array &$state): void {
+        $state['force_join_screen_shown'] = false;
+    });
+}
+
+/** Call after validating a private, human user and setting currentUserId(). */
+function forceJoinPermit(?string $callbackId = null): bool
+{
+    if (empty(forceJoinConfig()['enabled'])) return true;
+    $status = forceJoinStatus(currentUserId());
+    if ($status['allowed']) {
+        forceJoinMarkVerified();
+        return true;
+    }
+    if ($callbackId !== null) callbackAnswer($callbackId, '🔒 ابتدا عضویت کانال‌ها را تأیید کن.', true);
+    forceJoinShowPrompt($status);
+    return false;
+}
+
 function styleLabel(string $style): string
 {
     return match ($style) {
