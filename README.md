@@ -45,3 +45,11 @@
    
 // در آخر لینک ، توکن ربات را کامل قرار ندهید و فقط حروف بعد از : رو قرار بدید، برای مثال اگر توکن ربات شما 88224256752:AAGzjZuuW3Z5Bg5w2I-c2Z8rYlqHyp3utXs
 باشد، فقط AAGzjZuuW3Z5Bg5w2I-c2Z8rYlqHyp3utXs رو در آخر لینک قرار بدید.
+
+
+Support project
+If this project is helpful , you can donate to us🌟
+
+❤️ TPvnWPmTLfWW9GZATn22VJEYh2p3TqZQZW  (tron trx20)
+
+💜0x8dA8a48ECC2e23d045e3bBAf741a7C02dC569eC3 (usdt bep20)
