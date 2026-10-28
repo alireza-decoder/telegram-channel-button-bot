@@ -47,9 +47,10 @@
 باشد، فقط AAGzjZuuW3Z5Bg5w2I-c2Z8rYlqHyp3utXs رو در آخر لینک قرار بدید.
 
 
-Support project
+
+## Support project
 If this project is helpful , you can donate to us🌟
 
-❤️ TPvnWPmTLfWW9GZATn22VJEYh2p3TqZQZW  (tron trx20)
+<a href="https://nowpayments.io/donation/alirezadecoder" rel="nofollow">
+<img width="347" height="107" alt="donation-button-black" src="https://github.com/user-attachments/assets/b4682b50-5dae-4482-a866-d9a8f297be40" />
 
-💜0x8dA8a48ECC2e23d045e3bBAf741a7C02dC569eC3 (usdt bep20)
